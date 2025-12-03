@@ -1,7 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { TEST_PLACEMENT } from "@/lib/superwall-config";
-import Superwall from "@superwall/react-native-superwall";
+import { Superwall, TEST_PLACEMENT, isExpoGo } from "@/lib/superwall-config";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -16,35 +15,44 @@ import {
 export default function PaywallTriggerScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [showExpoGoModal, setShowExpoGoModal] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<
     "unknown" | "subscribed" | "not_subscribed"
   >("unknown");
 
   const handleAccessPremium = async () => {
+    console.log("🔘 Access Premium clicked! isExpoGo:", isExpoGo);
     try {
       setIsLoading(true);
 
-      // Register event with Superwall to trigger paywall
-      // This will automatically show the paywall if the user is not subscribed
-      await Superwall.shared.register(TEST_PLACEMENT);
+      if (isExpoGo) {
+        console.log("✅ Showing Expo Go modal...");
+        setIsLoading(false);
+        setShowExpoGoModal(true);
+      } else {
+        console.log("📱 Using real Superwall (development build)...");
+        // Register event with Superwall to trigger paywall
+        // This will automatically show the paywall if the user is not subscribed
+        await Superwall.shared.register(TEST_PLACEMENT);
 
-      console.log("Paywall triggered for placement:", TEST_PLACEMENT);
+        console.log("Paywall triggered for placement:", TEST_PLACEMENT);
 
-      // After paywall interaction completes
-      // In a real app, use Superwall delegate to handle purchase events
-      setSubscriptionStatus("not_subscribed");
-      Alert.alert(
-        "Paywall Displayed",
-        "In a production app, Superwall will handle the purchase flow automatically. Configure your products in the Superwall dashboard."
-      );
+        // After paywall interaction completes
+        // In a real app, use Superwall delegate to handle purchase events
+        setSubscriptionStatus("not_subscribed");
+        setIsLoading(false);
+        Alert.alert(
+          "Paywall Displayed",
+          "In a production app, Superwall will handle the purchase flow automatically. Configure your products in the Superwall dashboard."
+        );
+      }
     } catch (error) {
       console.error("Error triggering paywall:", error);
+      setIsLoading(false);
       Alert.alert(
         "Error",
         "Failed to show paywall. Make sure you have configured your Superwall API key and created the placement in your dashboard."
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -126,6 +134,47 @@ export default function PaywallTriggerScreen() {
         Note: Make sure to configure your Superwall API key and create a
         placement named "{TEST_PLACEMENT}" in your Superwall dashboard.
       </ThemedText>
+
+      {/* Expo Go Warning Modal */}
+      <Modal
+        visible={showExpoGoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowExpoGoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>⚠️ Expo Go Mode</Text>
+            <Text style={styles.modalText}>
+              You're running in Expo Go, which doesn't support native modules.
+              {"\n\n"}
+              To see REAL Superwall paywalls:{"\n"}
+              1. Build: eas build --platform ios{"\n"}
+              2. Install the build on your device{"\n"}
+              3. Test the paywall{"\n\n"}
+              For now, tap "Go to Premium" to view the premium screen (demo
+              only).
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowExpoGoModal(false)}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={() => {
+                  setShowExpoGoModal(false);
+                  router.push("/premium");
+                }}
+              >
+                <Text style={styles.modalButtonText}>Go to Premium</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -205,5 +254,63 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginTop: 24,
     fontStyle: "italic",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+    color: "#000",
+  },
+  modalText: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 24,
+    color: "#333",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalButtonCancel: {
+    backgroundColor: "#f0f0f0",
+  },
+  modalButtonPrimary: {
+    backgroundColor: "#007AFF",
+  },
+  modalButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalButtonTextCancel: {
+    color: "#333",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
